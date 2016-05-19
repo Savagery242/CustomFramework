@@ -9,7 +9,7 @@ namespace StateControl
         // Method called to serialize a Vector3 object
         public void GetObjectData(System.Object obj, SerializationInfo info, StreamingContext context)
         {
-
+            
             Quaternion q = (Quaternion)obj;
             info.AddValue("x", q.x);
             info.AddValue("y", q.y);
@@ -149,7 +149,7 @@ namespace StateControl
                 Debug.LogError("Attempting to serialize GameObject with no SavableObject component attached. You must attach a SavableObject component to the desired GameObject in order to serialize it. ", go);
                 return;
             }
-            info.AddValue("guid", so.uniqueID);
+            info.AddValue("guid", so.guid);
 
         }
 
@@ -162,7 +162,7 @@ namespace StateControl
             SavableObject[] sos = StateController.GetAllSavableObjects();
             foreach (var so in sos)
             {
-                if (so.uniqueID == guid)
+                if (so.guid == guid)
                 {
                     m = so.gameObject;
                 }

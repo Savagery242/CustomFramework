@@ -2,6 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System;
+using UnityEditor;
+using UnityEngine.SceneManagement;
 
 public class UniqueIdentifierAttribute : PropertyAttribute { }
 
@@ -11,18 +13,27 @@ namespace StateControl
     public class SavableObject : MonoBehaviour
     {
         [UniqueIdentifier]
-        public string uniqueID;
-
-        static List<SavableObject> savableObjects = new List<SavableObject>();
+        public string guid;
 
         static List<string> identifiers = new List<string>();
         public static List<string> GetIdentifiers() { return identifiers; }
+
+        SavableObject[] GetSavableObjectsInScene()
+        {
+            GameObject[] roots = gameObject.scene.GetRootGameObjects();
+            var savables = new List<SavableObject>();
+            foreach (var go in roots)
+            {
+                savables.AddRange(go.GetComponentsInChildren<SavableObject>());
+            }
+            return savables.ToArray();
+        }
 
         //==================================================
         //  PRIVATE FIELDS
         //==================================================
 
-        bool isQuitting;
+        bool isAwake;
 
         //==================================================
         //  PRIVATE METHODS
@@ -31,58 +42,75 @@ namespace StateControl
         void GetNewGUID()
         {
             Guid guid = Guid.NewGuid();
-            uniqueID = guid.ToString();
+            this.guid = guid.ToString();
             Debug.LogWarning("New GUID Assigned to " + gameObject.name);
         }
 
-        void CheckGUIDEmpty()
+        bool CheckGUIDEmpty()
         {
-            if (uniqueID == "" || string.IsNullOrEmpty(uniqueID))
-            {
-                GetNewGUID();
-                identifiers.Add(uniqueID);
-                return;
-            }
+            return (guid == "" || string.IsNullOrEmpty(guid));
         }
-        void CheckGUIDAdded()
+        bool CheckGUIDAdded()
         {
-            if (!identifiers.Exists((x) => x == uniqueID))
+            return (identifiers.Exists((x) => x == guid));
+        }
+        bool CheckGUIDConflict()
+        {
+            bool duplicate = false;
+            var ids = identifiers.FindAll((x) => x == guid);
+            if (ids.Count > 1)
             {
-                identifiers.Add(uniqueID);
+                duplicate = true;
+                string message = "";
+                foreach (var i in ids)
+                {
+                    message += (i + "\n");
+                }
+                EditorUtility.DisplayDialog("GUID CONFLICT(S) DETECTED", message, "OK");
             }
+            return duplicate;
+        }
+        void RemoveGUIDFromPool()
+        {
+            identifiers.Remove(guid);
         }
 
         //==================================================
         //  UNITY METHODS
         //==================================================
 
-       
-
-        void OnValidate()
-        {
-            CheckGUIDEmpty();
-            CheckGUIDAdded();
-        }
         void Awake()
         {
-            if (savableObjects.Exists((x) => x != this && x.uniqueID == this.uniqueID))
-            {
-                Debug.Log("Clash!");
-            }
-            if (!savableObjects.Contains(this)) savableObjects.Add(this);
-        }
+            if (CheckGUIDEmpty()) GetNewGUID();
 
-        void OnApplicationQuit()
-        {
-            isQuitting = true;
+            if (CheckGUIDAdded())
+            {
+                string otherObject = identifiers.Find((x) => x == guid);
+                bool fixConflict = EditorUtility.DisplayDialog("GUID CONFLICT", 
+                                                               "Duplicate GUID Detected:" + "\n" + 
+                                                               "Existing Object: " + otherObject + "\n" +
+                                                               "New Object: " + this.name,
+                                                               "Fix", 
+                                                               "Ignore");
+                if (fixConflict)
+                {
+                    GetNewGUID();
+                    identifiers.Add(guid);
+                }
+                else
+                {
+                    Debug.LogWarning("You have chosen to ignore a GUID conflict. This may result in corrupted savegames. Please fix manually immediately.");
+                }                
+            }
+            else
+            {
+                identifiers.Add(guid);
+            }
+            isAwake = true;
         }
         void OnDestroy()
         {
-            if (Application.isPlaying && !isQuitting && !StateController.isLoading)
-            {
-                StateController.AddToDestroyedPool(this); // Create backup object
-            }
-
+            identifiers.Remove(guid);
         }
     }
 }

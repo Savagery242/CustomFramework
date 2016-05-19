@@ -21,8 +21,11 @@ namespace StateControl
         public bool isSaved;
     }
 
-    public class StateController : MyBehaviour
+    public class StateController : MonoBehaviour
     {
+
+        string fileName;
+
         //==================================================
         //  SINGLETON
         //==================================================
@@ -43,7 +46,7 @@ namespace StateControl
 
         public static void AddToDestroyedPool(SavableObject so)
         {
-            SavableObject oldSO = destroyedObjectPool.Find((x) => x.uniqueID == so.uniqueID);
+            SavableObject oldSO = destroyedObjectPool.Find((x) => x.guid == so.guid);
             if (oldSO != null)
             {
                 Debug.Log("object already exists, removing old copy");
@@ -54,7 +57,7 @@ namespace StateControl
             newGO.name = so.gameObject.name;
             newGO.transform.parent = so.gameObject.transform.parent;
             SavableObject newSO = newGO.GetComponent<SavableObject>();
-            newSO.uniqueID = so.uniqueID;
+            newSO.guid = so.guid;
             destroyedObjectPool.Add(newSO);
             newGO.SetActive(false);
         }
@@ -87,7 +90,7 @@ namespace StateControl
             //  Discover open scenes
             //--------------------------------------------------
 
-            state.openScenes = FindOpenScenes();
+            state.openScenes = SceneUtils.GetOpenScenes().GetNames();
 
             //--------------------------------------------------
             //  Gather object information
@@ -107,7 +110,7 @@ namespace StateControl
 
             BinaryFormatter bf = GetBinaryFormatter();
             FileStream file;
-            using (file = File.Open(Application.persistentDataPath + "/playerInfo.dat", FileMode.Create))
+            using (file = File.Open(fileName, FileMode.Create))
             {
                 try
                 {
@@ -115,12 +118,8 @@ namespace StateControl
                 }
                 catch
                 {
-                    Debug.LogError("Could not save game!");
+                    Debug.LogError("Save Error: Could not serialize object!");
                     throw;
-                }
-                finally
-                {
-                    file.Close();
                 }
             }
             Debug.Log("Game Saved! " + Application.persistentDataPath);
@@ -141,14 +140,14 @@ namespace StateControl
             //  Open File and get state
             //--------------------------------------------------
 
+            
             SaveGame state;
             BinaryFormatter bf = GetBinaryFormatter();
 
-            if (File.Exists(Application.persistentDataPath + "/playerInfo.dat"))
+            if (File.Exists(fileName))
             {
-
                 FileStream file;
-                using (file = File.Open(Application.persistentDataPath + "/playerInfo.dat", FileMode.Open))
+                using (file = File.Open(fileName, FileMode.Open))
                 {
                     try
                     {
@@ -156,17 +155,14 @@ namespace StateControl
                     }
                     catch
                     {
-                        Debug.LogError("Could not load game!");
+                        Debug.LogError("Load Error: Could not deserialize object!");
                         throw;
-                    }
-                    finally
-                    {
-                        file.Close();
                     }
                 }
             }
             else
             {
+                Debug.LogError("Error opening file: File Not Found (" + fileName + ")");
                 yield break;
             }
 
@@ -180,92 +176,32 @@ namespace StateControl
 
             */
 
-            isLoading = true;
+            Scene managerScene = gameObject.scene; // Assume this class is on an object in the manager scene; never load/unload this scene.
+            var openScenes = SceneUtils.GetOpenScenes();
 
-            var desiredOpenScenes = new List<string>();
-            var currentOpenScenes = new List<string>();
-            var scenesToOpen = new List<string>();
-            var scenesToClose = new List<string>();
+            //--------------------------------------------------
+            //  Close current scenes (except Manager scene)
+            //--------------------------------------------------
 
-            desiredOpenScenes.AddRange(state.openScenes);
-            currentOpenScenes.AddRange(FindOpenScenes());
-
-            SceneManager.LoadScene("Loading", LoadSceneMode.Additive);
-
-            yield return new WaitForEndOfFrame();
-
-            foreach (var s in currentOpenScenes)
+            var scenesToClose = new List<Scene>();
+            foreach (var s in openScenes)
             {
-                Debug.Log(s);
-
-                //if (s == "Scene01")
-                SceneManager.UnloadScene(s);
-                yield return new WaitForEndOfFrame();
+                if (s == managerScene) continue; // Do not close manager scene, of which this object is a part
+                SceneManager.UnloadScene(s.name);
             }
-            foreach (var s in desiredOpenScenes)
+
+            //--------------------------------------------------
+            //  Open up new set of scenes
+            //--------------------------------------------------
+
+            var scenesToOpen = new List<Scene>();
+
+            foreach (var s in state.openScenes)
             {
+                if (s == managerScene.name) continue;
                 SceneManager.LoadScene(s, LoadSceneMode.Additive);
-                yield return new WaitForEndOfFrame();
             }
-
-            SceneManager.UnloadScene("Loading");
-
-            yield return new WaitForEndOfFrame();
-
-            //isLoading = false;
-
-            /*
-
-            bool scenesMatch = true;
-
-            if (currentOpenScenes.Count != desiredOpenScenes.Count)
-            {
-                scenesMatch = false;
-            }
-            else if (!(desiredOpenScenes.TrueForAll((x) => currentOpenScenes.Contains(x))))
-            {
-                scenesMatch = false;
-            }       
-
-            if (!scenesMatch)
-            {
-                foreach (var s in desiredOpenScenes)
-                {
-                    if (!currentOpenScenes.Contains(s)) scenesToOpen.Add(s);
-                }
-                foreach (var s in currentOpenScenes)
-                {
-                    if (!desiredOpenScenes.Contains(s)) scenesToClose.Add(s);
-                }
-                foreach (var s in scenesToClose)
-                {
-                    string sceneName = SceneManager.GetSceneByPath(s).name;
-                    if (!Application.isPlaying)
-                    {
-                        Scene scene = UnityEditor.SceneManagement.EditorSceneManager.GetSceneByPath(s);
-                        UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
-                    }
-                    else
-                    {                    
-                        SceneManager.UnloadScene(sceneName);
-                    }                
-                }
-                foreach (var s in scenesToOpen)
-                {
-                    string sceneName = SceneManager.GetSceneByPath(s).name;
-                    if (!Application.isPlaying)
-                    {
-                        UnityEditor.SceneManagement.EditorSceneManager.OpenScene(s, UnityEditor.SceneManagement.OpenSceneMode.Additive);
-                    }
-                    else
-                    {
-                        SceneManager.LoadScene(sceneName, LoadSceneMode.Additive);
-                    }               
-                }
-            }
-
-            */
-
+            
             //--------------------------------------------------
             //  Restore Objects
             //--------------------------------------------------
@@ -278,7 +214,7 @@ namespace StateControl
 
             foreach (var o in loadedObjects)
             {
-                SavableObject destObject = savableObjects.Find((x) => x.uniqueID == o.guid); // Find object by GUID
+                SavableObject destObject = savableObjects.Find((x) => x.guid == o.guid); // Find object by GUID
                 if (destObject == null)
                 {
                     orphans.Add(o);
@@ -324,29 +260,18 @@ namespace StateControl
 
             int numOrphans = orphans.Count;
             Debug.Log("Load Successful! Number of orphans: " + numOrphans);
-
         }
-
 
         //==================================================
         //  HELPER METHODS
         //==================================================
 
-        string[] FindOpenScenes()
-        {
-            string[] openScenes = new string[SceneManager.sceneCount];
-            for (int i = 0; i < SceneManager.sceneCount; ++i)
-            {
-                openScenes[i] = SceneManager.GetSceneAt(i).name;
-            }
-            return openScenes;
-        }
 
         static GameObjectData BuildGOD(SavableObject so)
         {
             GameObjectData god = new GameObjectData();
             god.SetTransform(so.transform);
-            god.guid = so.uniqueID;
+            god.guid = so.guid;
             var behaviours = so.GetComponents<Component>();
             foreach (var b in behaviours)
             {
@@ -468,6 +393,15 @@ namespace StateControl
                 returnVal = true;
             }
             return returnVal;
+        }
+
+        //==================================================
+        //  UNITY METHODS
+        //==================================================
+
+        void Awake()
+        {
+            fileName = Application.persistentDataPath + "/playerInfo.dat";
         }
 
     }
