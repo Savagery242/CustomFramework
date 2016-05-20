@@ -23,18 +23,13 @@ namespace StateControl
 
     public class StateController : MonoBehaviour
     {
-
-        string fileName;
+        const string fileName = "/playerInfo.dat";
 
         //==================================================
         //  SINGLETON
         //==================================================
 
-        static StateController _instance;
-        public static StateController instance
-        {
-            get { return _instance ?? (_instance = new StateController()); }
-        }
+        public static StateController instance { get; private set; }
 
         //==================================================
         //  STATIC
@@ -70,13 +65,6 @@ namespace StateControl
             return savableObjects.ToArray();
         }
 
-        /*
-        public static SavableObject GetFromDestroyedPool(string guid)
-        {
-            return (destroyedObjectPool.Find((x) => x.uniqueID == guid));
-        }
-        */
-
         //==================================================
         //  SAVE
         //==================================================   
@@ -84,6 +72,8 @@ namespace StateControl
 
         public void SaveState()
         {
+            string path = Application.persistentDataPath + fileName;
+
             SaveGame state = new SaveGame();
 
             //--------------------------------------------------
@@ -110,7 +100,7 @@ namespace StateControl
 
             BinaryFormatter bf = GetBinaryFormatter();
             FileStream file;
-            using (file = File.Open(fileName, FileMode.Create))
+            using (file = File.Open(path, FileMode.Create))
             {
                 try
                 {
@@ -136,18 +126,22 @@ namespace StateControl
 
         IEnumerator Load()
         {
+
+            Debug.Log("loading");
+
             //--------------------------------------------------
             //  Open File and get state
             //--------------------------------------------------
 
+            string path = Application.persistentDataPath + fileName;
             
             SaveGame state;
             BinaryFormatter bf = GetBinaryFormatter();
 
-            if (File.Exists(fileName))
+            if (File.Exists(path))
             {
                 FileStream file;
-                using (file = File.Open(fileName, FileMode.Open))
+                using (file = File.Open(path, FileMode.Open))
                 {
                     try
                     {
@@ -162,7 +156,7 @@ namespace StateControl
             }
             else
             {
-                Debug.LogError("Error opening file: File Not Found (" + fileName + ")");
+                Debug.LogError("Error opening file: File Not Found (" + path + ")");
                 yield break;
             }
 
@@ -199,7 +193,8 @@ namespace StateControl
             foreach (var s in state.openScenes)
             {
                 if (s == managerScene.name) continue;
-                SceneManager.LoadScene(s, LoadSceneMode.Additive);
+                AsyncOperation ao = SceneManager.LoadSceneAsync(s, LoadSceneMode.Additive);
+                while (!ao.isDone) { yield return null; }
             }
             
             //--------------------------------------------------
@@ -207,10 +202,8 @@ namespace StateControl
             //--------------------------------------------------
 
             var loadedObjects = state.goData;
-            var savableObjects = new List<SavableObject>();
+            var savableObjects = SavableObject.GetIdentifiers();
             var orphans = new List<GameObjectData>();
-
-            savableObjects.AddRange(GetAllSavableObjects());
 
             foreach (var o in loadedObjects)
             {
@@ -401,7 +394,15 @@ namespace StateControl
 
         void Awake()
         {
-            fileName = Application.persistentDataPath + "/playerInfo.dat";
+            if (instance == null)
+            {
+                instance = this;
+            }
+            else
+            {
+                Debug.LogWarning("Duplicate StateController found, destroying...");
+                Destroy(this);
+            }
         }
 
     }

@@ -63,17 +63,17 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Scripts\Extensions\Ext_SceneManager.cs" />
     <Compile Include="Assets\Scripts\LoopControl\LCHook.cs" />
     <Compile Include="Assets\Scripts\LoopControl\LoopController.cs" />
     <Compile Include="Assets\Scripts\LoopControl\MyBehaviour.cs" />
     <Compile Include="Assets\Scripts\LoopControl\MySingleton.cs" />
     <Compile Include="Assets\Scripts\LoopControl\MyStrings.cs" />
     <Compile Include="Assets\Scripts\SphereMover.cs" />
-    <Compile Include="Assets\Scripts\StateControl\Exceptions.cs" />
+    <Compile Include="Assets\Scripts\StateControl\Editor Background Processes\BackgroundVerification.cs" />
     <Compile Include="Assets\Scripts\StateControl\GameObjectData.cs" />
     <Compile Include="Assets\Scripts\StateControl\MonoBehaviourData.cs" />
     <Compile Include="Assets\Scripts\StateControl\SavableObject.cs" />
+    <Compile Include="Assets\Scripts\StateControl\SceneUtils.cs" />
     <Compile Include="Assets\Scripts\StateControl\SerializableStructs.cs" />
     <Compile Include="Assets\Scripts\StateControl\SerializationSurrogates.cs" />
     <Compile Include="Assets\Scripts\StateControl\StateController.cs" />
